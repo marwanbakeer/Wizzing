@@ -1,0 +1,141 @@
+name: Wizzing CI/CD
+
+on:
+  push:
+    branches: [ main, master ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  # Job 1: Web Verification & Bundle Test
+  test-and-build-web:
+    name: Test & Build Web App
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Typecheck & Production Build
+        run: npm run build
+
+      - name: Upload Web Dist Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wizzing-web-dist
+          path: dist/
+          retention-days: 14
+
+  # Job 2: Native Android APK Build & Artifact Publishing
+  build-android-apk:
+    name: Build Android APK
+    needs: test-and-build-web
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Setup Java JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Build Web Application
+        run: npm run build
+
+      - name: Sync Capacitor Android
+        run: npx cap sync android
+
+      - name: Make Gradle Executable
+        working-directory: android
+        run: chmod +x gradlew
+
+      - name: Build Android Debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: Rename APK for Distribution
+        run: |
+          mkdir -p build-artifacts
+          cp android/app/build/outputs/apk/debug/app-debug.apk build-artifacts/Wizzing-v1.0.0.apk
+
+      - name: Upload Android APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Wizzing-Android-APK
+          path: build-artifacts/Wizzing-v1.0.0.apk
+          retention-days: 30
+
+      # Optional: Create GitHub Release when a tag is pushed
+      - name: Create GitHub Release on Tag
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build-artifacts/Wizzing-v1.0.0.apk
+          name: Release ${{ github.ref_name }}
+          body: |
+            🚀 **Wizzing — Quantum Block Odyssey (Mobile APK & Apple iOS)**
+            
+            - Download `Wizzing-v1.0.0.apk` below for direct installation on Android devices.
+            - iOS / Web app available via Safari "Add to Home Screen" or Xcode workspace in `ios/App`.
+            - Enjoy 10-stage Odyssey, procedural Web Audio, and accessible controls!
+
+  # Job 3: iOS Container Verification
+  verify-ios:
+    name: Verify Apple iOS Project
+    needs: test-and-build-web
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Build Web Application
+        run: npm run build
+
+      - name: Sync Capacitor iOS
+        run: npx cap sync ios
+
+      - name: Verify iOS Xcode Project Assets
+        run: |
+          test -d ios/App/App
+          test -f ios/App/App/Info.plist
+          echo "iOS project structure verified successfully."

@@ -1,0 +1,19 @@
+{
+  "name": "Wizzing: Quantum Block Odyssey",
+  "short_name": "Wizzing",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#05070a",
+  "theme_color": "#00f2fe",
+  "description": "Next-generation block puzzle game engineered for the next 30 years.",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/logo.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["games", "puzzle", "arcade"]
+}
